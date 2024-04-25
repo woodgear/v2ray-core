@@ -4,6 +4,7 @@
 package tcp
 
 import (
+	"fmt"
 	"syscall"
 
 	"github.com/v2fly/v2ray-core/v5/common/net"
@@ -61,5 +62,6 @@ func GetOriginalDestination(conn internet.Connection) (net.Destination, error) {
 	if !dest.IsValid() {
 		return net.Destination{}, newError("failed to call getsockopt")
 	}
+	fmt.Println("in here")
 	return dest, nil
 }
