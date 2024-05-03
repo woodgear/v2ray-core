@@ -132,6 +132,7 @@ func (d *Door) Process(ctx context.Context, network net.Network, conn internet.C
 	timer := signal.CancelAfterInactivity(ctx, cancel, plcy.Timeouts.ConnectionIdle)
 
 	ctx = policy.ContextWithBufferPolicy(ctx, plcy.Buffer)
+	// [wg] 获得了一个link
 	link, err := dispatcher.Dispatch(ctx, dest)
 	if err != nil {
 		return newError("failed to dispatch request").Base(err)
@@ -144,13 +145,13 @@ func (d *Door) Process(ctx context.Context, network net.Network, conn internet.C
 				timer.SetTimeout(plcy.Timeouts.DownlinkOnly)
 			}
 		}()
-
 		var reader buf.Reader
 		if dest.Network == net.Network_UDP {
 			reader = buf.NewPacketReader(conn)
 		} else {
 			reader = buf.NewReader(conn)
 		}
+		// [wg] 每次这里copy了多少数据？ 这里应该就是一个tcp包的数据的大小吧
 		if err := buf.Copy(reader, link.Writer, buf.UpdateActivity(timer)); err != nil {
 			return newError("failed to transport request").Base(err)
 		}
@@ -205,16 +206,24 @@ func (d *Door) Process(ctx context.Context, network net.Network, conn internet.C
 
 	responseDone := func() error {
 		defer timer.SetTimeout(plcy.Timeouts.UplinkOnly)
-
+		// [wg] 拷贝机场的回包
 		if err := buf.Copy(link.Reader, writer, buf.UpdateActivity(timer)); err != nil {
 			return newError("failed to transport response").Base(err)
 		}
 		return nil
 	}
-
-	if err := task.Run(ctx, task.OnSuccess(func() error {
-		return task.Run(ctx, requestDone, tproxyRequest)
-	}, task.Close(link.Writer)), responseDone); err != nil {
+	// [wg] 这里就是真正调用转发的地方
+	// 同时执行(每个f都是在协程中) requestDone tproxyRequest responseDone，当 （requestDone，tproxyRequest）都正常退出后执行 link.Writer close
+	if err := task.Run(
+		ctx,
+		task.OnSuccess(
+			func() error {
+				return task.Run(ctx, requestDone, tproxyRequest)
+			},
+			task.Close(link.Writer),
+		),
+		responseDone,
+	); err != nil {
 		common.Interrupt(link.Reader)
 		common.Interrupt(link.Writer)
 		return newError("connection ends").Base(err)

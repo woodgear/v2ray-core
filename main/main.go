@@ -9,6 +9,7 @@ import (
 func main() {
 	base.RootCommand.Long = "A unified platform for anti-censorship."
 	base.RegisterCommand(commands.CmdRun)
+	base.RegisterCommand(commands.CmdParse)
 	base.RegisterCommand(commands.CmdVersion)
 	base.RegisterCommand(commands.CmdTest)
 	base.SortLessFunc = runIsTheFirst

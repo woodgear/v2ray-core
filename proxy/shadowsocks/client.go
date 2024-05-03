@@ -61,6 +61,7 @@ func (c *Client) Process(ctx context.Context, link *transport.Link, dialer inter
 	var conn internet.Connection
 
 	err := retry.ExponentialBackoff(5, 100).On(func() error {
+		// [wg] 选择server
 		server = c.serverPicker.PickServer()
 		dest := server.Destination()
 		dest.Network = network

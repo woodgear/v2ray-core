@@ -72,6 +72,7 @@ func (w *tcpWorker) callback(conn internet.Connection) {
 				dest = d
 			}
 		case internet.SocketConfig_TProxy:
+			// [wg] 这里拿到的是我要连接的地址? localaddr 对于tproxy应该是个特殊的东西？
 			dest = net.DestinationFromAddr(conn.LocalAddr())
 		}
 		if dest.IsValid() {
@@ -99,6 +100,7 @@ func (w *tcpWorker) callback(conn internet.Connection) {
 			WriteCounter: w.downlinkCounter,
 		}
 	}
+	// [wg] 做tcp转发的地方
 	if err := w.proxy.Process(ctx, net.Network_TCP, conn, w.dispatcher); err != nil {
 		newError("connection ends").Base(err).WriteToLog(session.ExportIDToError(ctx))
 	}
