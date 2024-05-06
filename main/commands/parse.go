@@ -22,10 +22,18 @@ var CmdParse = &base.Command{
 	Run:         executeParse,
 }
 
+func decodeUrlbase64(raw string) (string, error) {
+	nodes_raw, err := base64.RawStdEncoding.DecodeString(raw)
+	if err != nil {
+		return "", fmt.Errorf("de base64 fail raw %v err %v", raw, err)
+	}
+	return string(nodes_raw), nil
+}
+
 func decodebase64(raw string) (string, error) {
 	nodes_raw, err := base64.StdEncoding.DecodeString(raw)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("de base64 fail raw %v err %v", raw, err)
 	}
 	return string(nodes_raw), nil
 }
@@ -38,13 +46,14 @@ type ShadowsocksServerTarget struct {
 	Mark     string `json:"mark"`
 }
 
-func parse_ss(url_str string) (server ShadowsocksServerTarget, err error) {
+func parse_ss(url_str string, name string) (server ShadowsocksServerTarget, err error) {
 	t := ShadowsocksServerTarget{}
 	url, err := nurl.Parse(url_str)
 	if err != nil {
 		return t, err
 	}
-	t.Mark = url.Fragment
+	t.Mark = name + " " + strings.TrimSpace(url.Fragment)
+
 	if url.User.String() == "" {
 		// base64的情况
 		infos, err := decodebase64(url.Hostname())
@@ -60,9 +69,9 @@ func parse_ss(url_str string) (server ShadowsocksServerTarget, err error) {
 		t.Method = method
 		t.Password = passwd
 	} else {
-		cipherInfoString, err := decodebase64(url.User.Username())
+		cipherInfoString, err := decodeUrlbase64(url.User.Username())
 		if err != nil {
-			return t, err
+			return t, fmt.Errorf("decode cipher fail raw %v err %v", url.User.Username(), err)
 		}
 		cipherInfo := strings.SplitN(cipherInfoString, ":", 2)
 		if err != nil {
@@ -95,6 +104,15 @@ func lookup(domain string, cache map[string][]string) ([]string, error) {
 	return ips, nil
 
 }
+
+func getHostName(url string) string {
+	u, err := nurl.Parse(url)
+	if err != nil {
+		return ""
+	}
+	return u.Hostname()
+}
+
 func doParse(urls []string) error {
 	dns := map[string][]string{}
 	fmt.Println(urls, len(urls))
@@ -115,12 +133,15 @@ func doParse(urls []string) error {
 			return err
 		}
 		for _, n := range strings.Split(nodes, "\n") {
+			if !strings.HasPrefix(n, "ss://") {
+				continue
+			}
 			if strings.TrimSpace(n) == "" {
 				continue
 			}
-			server, err := parse_ss(n)
+			server, err := parse_ss(n, getHostName(url))
 			if err != nil {
-				return err
+				continue
 			}
 			ips, err := lookup(server.Address, dns)
 			if err != nil {
