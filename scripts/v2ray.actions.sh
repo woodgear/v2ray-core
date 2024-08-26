@@ -1,18 +1,35 @@
 #!/bin/bash
-function vray_build() {
+function mray-build() {
   mkdir -p build_assets
+
+  go build -buildmode=pie -ldflags '-w -s -linkmode=external -extldflags=-Wl,-z,relro,-z,now' -v -o build_assets/MRAY ./main
+
   go build -gcflags "all=-N -l" -v -o build_assets/MRAY ./main
 }
 
-function vray-test() (
-  vray_build
+function mray-init() (
+  vray-init-cfg
+  vray-init-localnet
+  vray-init-myvps
+  vray-init-tproxy
+  vray-init-mray
+  vray-init-vray
+)
+
+function mray-test() (
+  mray_build
   sudo ./build_assets/MRAY run -c ./build_assets/config.json
 )
 
+function mray-init-and-test() (
+  mray-init
+  mray-test
+)
+
 function vray-init-cfg() (
-    sudo cp /etc/v2ray/config.json ./build_assets/config.json
-    local cfg=$(cat ./build_assets/config.json)
-    echo "$cfg" | jq '.inbounds[0].port = 10003' | jq '.outbounds[0].streamSettings.sockopt.mark = 254' > ./build_assets/config.json
+  sudo cp /etc/v2ray/config.json ./build_assets/config.json
+  local cfg=$(cat ./build_assets/config.json)
+  echo "$cfg" | jq '.inbounds[0].port = 10003' | jq '.outbounds[0].streamSettings.sockopt.mark = 254' >./build_assets/config.json
 )
 
 function vray-debug() (
@@ -100,11 +117,9 @@ function vray-init-vray() (
 )
 
 function vray-init-tproxy() (
-  set -x
   vray-clean-tproxy
   sudo ipset list localnet | wc -l
   sudo ipset list chinaip | wc -l
   sudo ipset list myvps | wc -l
   sudo ip route add local 0.0.0.0/0 dev lo table 100 # 在路由表 100 中增加了一条规则，指示所有目的地址为 0.0.0.0/0 的流量都重新走本地回环接口进行处理 -> 重新走到pre-route
-
 )

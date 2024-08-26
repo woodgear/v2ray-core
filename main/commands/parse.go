@@ -31,7 +31,7 @@ func decodeUrlbase64(raw string) (string, error) {
 }
 
 func decodebase64(raw string) (string, error) {
-	nodes_raw, err := base64.StdEncoding.DecodeString(raw)
+	nodes_raw, err := base64.RawStdEncoding.DecodeString(raw)
 	if err != nil {
 		return "", fmt.Errorf("de base64 fail raw %v err %v", raw, err)
 	}
