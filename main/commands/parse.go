@@ -95,8 +95,38 @@ func lookup(domain string, cache map[string][]string) ([]string, error) {
 	return ips, nil
 
 }
-func doParse(urls []string) error {
+
+func doParseRaw(raw string) ([]ShadowsocksServerTarget, error) {
+	ss := []ShadowsocksServerTarget{}
+	nodes, err := decodebase64(raw)
+	if err != nil {
+		return ss, err
+	}
 	dns := map[string][]string{}
+	for _, n := range strings.Split(nodes, "\n") {
+		if strings.TrimSpace(n) == "" {
+			continue
+		}
+		server, err := parse_ss(n)
+		if err != nil {
+			return ss, err
+		}
+		ips, err := lookup(server.Address, dns)
+		if err != nil {
+			return ss, err
+		}
+		for _, ip := range ips {
+			s := server
+			s.Address = ip
+			ss = append(ss, s)
+		}
+	}
+	ss = lo.UniqBy(ss, func(item ShadowsocksServerTarget) string {
+		return fmt.Sprintf("%+v", item)
+	})
+	return ss, nil
+}
+func doParse(urls []string) error {
 	fmt.Println(urls, len(urls))
 	ss := []ShadowsocksServerTarget{}
 	for _, url := range urls {
@@ -110,28 +140,11 @@ func doParse(urls []string) error {
 		if err != nil {
 			return err
 		}
-		nodes, err := decodebase64(string(body))
+		ss_x, err := doParseRaw(string(body))
 		if err != nil {
 			return err
 		}
-		for _, n := range strings.Split(nodes, "\n") {
-			if strings.TrimSpace(n) == "" {
-				continue
-			}
-			server, err := parse_ss(n)
-			if err != nil {
-				return err
-			}
-			ips, err := lookup(server.Address, dns)
-			if err != nil {
-				return err
-			}
-			for _, ip := range ips {
-				s := server
-				s.Address = ip
-				ss = append(ss, s)
-			}
-		}
+		ss = append(ss, ss_x...)
 	}
 	ss = lo.UniqBy(ss, func(item ShadowsocksServerTarget) string {
 		return fmt.Sprintf("%+v", item)
