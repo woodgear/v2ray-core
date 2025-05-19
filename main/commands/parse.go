@@ -23,11 +23,32 @@ var CmdParse = &base.Command{
 }
 
 func decodebase64(raw string) (string, error) {
+	// Try StdEncoding first
 	nodes_raw, err := base64.StdEncoding.DecodeString(raw)
-	if err != nil {
-		return "", err
+	if err == nil {
+		return string(nodes_raw), nil
 	}
-	return string(nodes_raw), nil
+
+	// Try RawStdEncoding if StdEncoding fails
+	nodes_raw, err = base64.RawStdEncoding.DecodeString(raw)
+	if err == nil {
+		return string(nodes_raw), nil
+	}
+
+	// Try URLEncoding if RawStdEncoding fails
+	nodes_raw, err = base64.URLEncoding.DecodeString(raw)
+	if err == nil {
+		return string(nodes_raw), nil
+	}
+
+	// Try RawURLEncoding as last resort
+	nodes_raw, err = base64.RawURLEncoding.DecodeString(raw)
+	if err == nil {
+		return string(nodes_raw), nil
+	}
+
+	// All decoding methods failed
+	return "", fmt.Errorf("failed to decode base64 string with all encoding methods")
 }
 
 type ShadowsocksServerTarget struct {
