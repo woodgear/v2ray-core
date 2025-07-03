@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/http"
 	nurl "net/url"
+	"os"
 	"strconv"
 	"strings"
 
@@ -175,6 +176,7 @@ func doParse(urls []string) error {
 		return err
 	}
 	fmt.Println(string(out))
+	os.WriteFile("./ss.json", out, 0644)
 	return nil
 }
 
