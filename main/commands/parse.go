@@ -23,6 +23,20 @@ var CmdParse = &base.Command{
 	Run:         executeParse,
 }
 
+type ParseFlags struct {
+	OutPutPath string
+	SSUrl      string
+	Base64File string
+}
+
+var PARSE_FLAG = ParseFlags{}
+
+func initCmd(c *base.Command, args []string) {
+	c.Flag.StringVar(&PARSE_FLAG.OutPutPath, "out-path", "./ss.json", "Path to the output file")
+	c.Flag.StringVar(&PARSE_FLAG.SSUrl, "ss-url", "", "Path to the output file")
+	c.Flag.StringVar(&PARSE_FLAG.Base64File, "base64-file", "", "Path to the base64 file")
+}
+
 func decodebase64(raw string) (string, error) {
 	// Try StdEncoding first
 	nodes_raw, err := base64.StdEncoding.DecodeString(raw)
@@ -54,6 +68,7 @@ func decodebase64(raw string) (string, error) {
 
 type ShadowsocksServerTarget struct {
 	Address  string `json:"address"`
+	Domain   string `json:"domain,omitempty"` // optional, if not set, use address
 	Port     uint16 `json:"port"`
 	Method   string `json:"method"`
 	Password string `json:"password"`
@@ -140,6 +155,7 @@ func doParseRaw(raw string) ([]ShadowsocksServerTarget, error) {
 		for _, ip := range ips {
 			s := server
 			s.Address = ip
+			s.Domain = server.Address
 			ss = append(ss, s)
 		}
 	}
@@ -148,25 +164,49 @@ func doParseRaw(raw string) ([]ShadowsocksServerTarget, error) {
 	})
 	return ss, nil
 }
-func doParse(urls []string) error {
-	fmt.Println(urls, len(urls))
+func curl(url string) (string, error) {
+	resp, err := http.Get(url)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", err
+	}
+	return string(body), nil
+}
+
+func read_file(path string) (string, error) {
+	body, err := os.ReadFile(path)
+	if err != nil {
+		return "", err
+	}
+	return string(body), nil
+}
+
+func doParse() error {
+
+	fmt.Printf("opt %+v\n", PARSE_FLAG)
 	ss := []ShadowsocksServerTarget{}
-	for _, url := range urls {
-		fmt.Println(url)
-		resp, err := http.Get(url)
+	raw := ""
+	if PARSE_FLAG.SSUrl != "" {
+		body, err := curl(PARSE_FLAG.SSUrl)
 		if err != nil {
 			return err
 		}
-		defer resp.Body.Close()
-		body, err := io.ReadAll(resp.Body)
+		raw = body
+	}
+	if PARSE_FLAG.Base64File != "" {
+		body, err := read_file(PARSE_FLAG.Base64File)
 		if err != nil {
 			return err
 		}
-		ss_x, err := doParseRaw(string(body))
-		if err != nil {
-			return err
-		}
-		ss = append(ss, ss_x...)
+		raw = body
+	}
+	ss, err := doParseRaw(raw)
+	if err != nil {
+		return err
 	}
 	ss = lo.UniqBy(ss, func(item ShadowsocksServerTarget) string {
 		return fmt.Sprintf("%+v", item)
@@ -176,12 +216,14 @@ func doParse(urls []string) error {
 		return err
 	}
 	fmt.Println(string(out))
-	os.WriteFile("./ss.json", out, 0644)
+	os.WriteFile(PARSE_FLAG.OutPutPath, out, 0644)
 	return nil
 }
 
 func executeParse(cmd *base.Command, args []string) {
-	if err := doParse(args); err != nil {
+	initCmd(cmd, args)
+	cmd.Flag.Parse(args)
+	if err := doParse(); err != nil {
 		panic(err)
 	}
 }

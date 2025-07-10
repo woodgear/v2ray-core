@@ -1,7 +1,8 @@
 #!/bin/bash
 function vray_build() {
   mkdir -p build_assets
-  go build -gcflags "all=-N -l" -v -o build_assets/MRAY ./main
+
+    CC=/usr/bin/musl-gcc CGO_ENABLED=1 go build -v  -ldflags '-w -s -linkmode=external -extldflags=-static'  -o build_assets/mray ./main
 }
 
 function vray-test() (
